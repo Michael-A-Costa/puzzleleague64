@@ -8,8 +8,10 @@ ifeq ($(OS),Windows_NT)
 else ifeq ($(UNAME_S),Linux)
 	DETECTED_OS := linux
 	HOST_TRIPLE := x86_64-unknown-linux-musl
+	IDO_OS      := linux
 else ifeq ($(UNAME_S),Darwin)
 	DETECTED_OS := mac
+	IDO_OS      := macos
 	MAKE := gmake
 	CPPFLAGS += -xc++
 	HOST_TRIPLE := x86_64-apple-darwin
@@ -61,9 +63,9 @@ $(KMC_BINUTILS): | $(KMC_DIR)
 	$(RM) binutils-2.6-$(DETECTED_OS).tar.gz
 
 $(IDO_53_CC): | $(IDO_53_DIR)
-	wget https://github.com/decompals/ido-static-recomp/releases/latest/download/ido-5.3-recomp-$(DETECTED_OS).tar.gz
-	tar xf ido-5.3-recomp-$(DETECTED_OS).tar.gz -C $(IDO_53_DIR)
-	$(RM) ido-5.3-recomp-$(DETECTED_OS).tar.gz
+	wget https://github.com/decompals/ido-static-recomp/releases/latest/download/ido-5.3-recomp-$(IDO_OS).tar.gz
+	tar xf ido-5.3-recomp-$(IDO_OS).tar.gz -C $(IDO_53_DIR)
+	$(RM) ido-5.3-recomp-$(IDO_OS).tar.gz
 
 $(SLINKY): | $(SLINKY_DIR)
 	wget https://github.com/decompals/slinky/releases/download/0.3.0/slinky-cli-$(HOST_TRIPLE).tar.gz

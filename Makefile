@@ -97,6 +97,8 @@ else ifeq ($(UNAME_S),Darwin)
 	DETECTED_OS := mac
 	MAKE := gmake
 	CPPFLAGS += -xc++
+	# Apple's clang targets Mach-O, which rejects ELF section names like ".bss"; check as Linux does
+	CC_CHECK_COMP += --target=x86_64-linux-gnu
 endif
 
 #### Tools ####
@@ -115,6 +117,12 @@ OBJCOPY         := $(MIPS_BINUTILS_PREFIX)objcopy
 OBJDUMP         := $(MIPS_BINUTILS_PREFIX)objdump
 GCC             := $(MIPS_BINUTILS_PREFIX)gcc
 CPP             := $(MIPS_BINUTILS_PREFIX)cpp
+# Homebrew's mips-linux-gnu-binutils doesn't ship a cpp, so fall back to clang's
+ifeq ($(DETECTED_OS),mac)
+ifneq ($(shell type $(CPP) >/dev/null 2>/dev/null; echo $$?), 0)
+	CPP         := clang -E
+endif
+endif
 STRIP           := $(MIPS_BINUTILS_PREFIX)strip
 # ICONV           := iconv
 

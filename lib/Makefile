@@ -34,7 +34,7 @@ ifeq ($(OS),Windows_NT)
 else ifeq ($(UNAME_S),Linux)
 	DETECTED_OS := linux
 else ifeq ($(UNAME_S),Darwin)
-	DETECTED_OS := macos
+	DETECTED_OS := mac
 	MAKE := gmake
 endif
 
