@@ -86,7 +86,7 @@ LoadFairySoundData = 0x80004198; // type:func size:0x500
 PlayGameSong = 0x80004698; // type:func size:0x270
 func_80004848_usa = 0x80004908; // type:func size:0x24
 PlayGameMusicTest = 0x8000492C; // type:func size:0x54
-func_800048C0_usa = 0x80004980; // type:func size:0x2DC
+PlayGameSfxTest = 0x80004980; // type:func size:0x2DC
 func_80004B9C_usa = 0x80004C5C; // type:func size:0x274
 func_80004E10_usa = 0x80004ED0; // type:func size:0x208
 func_80005018_usa = 0x800050D8; // type:func size:0xA8
@@ -2796,7 +2796,7 @@ B_801F8D38_eur = 0x801F8D38; //
 __osBaseTimer = 0x801F8D40; //
 
 B_801F8D64_eur = 0x801F8D64; //
-B_801F8D68_eur = 0x801F8D68; //
+B_801F9CA8_usa = 0x801F8D68; //
 gAllVertex = 0x801F8D78; //
 
 __muscontrol_flag = 0x801F8D80; //

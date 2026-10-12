@@ -36,7 +36,7 @@ s32 PlayMIDI(SongInitStruct bgmArray[], s32 songIndex, s32 songBuffer, s32 cross
 /**
  * Original name: PlaySE
  */
-musHandle PlaySE(SfxInitStruct sfxArray[], Sfx sfxIndex) {
+INLINE musHandle PlaySE(SfxInitStruct sfxArray[], Sfx sfxIndex) {
     SfxInitStruct *sfxPtr;
 
     if (B_801C6EF6_usa <= DOUBLE_LITERAL(327.67)) {
@@ -94,37 +94,42 @@ INCLUDE_ASM("asm/fra/nonmatchings/main/sfxlimit", func_800054DC_fra);
 INCLUDE_ASM("asm/ger/nonmatchings/main/sfxlimit", func_8000541C_usa);
 #endif
 
-#if VERSION_USA
-INCLUDE_ASM("asm/usa/nonmatchings/main/sfxlimit", func_80005608_usa);
-#endif
+musHandle func_80005608_usa(s32 arg0, s32 arg1) {
+    musHandle handle;
+    u8 pan;
 
-#if VERSION_EUR
-INCLUDE_ASM("asm/eur/nonmatchings/main/sfxlimit", func_80005608_usa);
-#endif
+    switch (arg1) {
+        case 1:
+            pan = 0x44;
+            break;
 
-#if VERSION_FRA
-INCLUDE_ASM("asm/fra/nonmatchings/main/sfxlimit", func_80005608_usa);
-#endif
+        default:
+            pan = 0xBC;
+            break;
 
-#if VERSION_GER
-INCLUDE_ASM("asm/ger/nonmatchings/main/sfxlimit", func_80005608_usa);
-#endif
+        case 0:
+            pan = 0x80;
+            break;
+    }
 
-#if VERSION_USA
-INCLUDE_ASM("asm/usa/nonmatchings/main/sfxlimit", func_80005780_usa);
-#endif
+    if ((u32)arg0 >= 0x11) {
+        arg0 = 0;
+    }
 
-#if VERSION_EUR
-INCLUDE_ASM("asm/eur/nonmatchings/main/sfxlimit", func_80005780_usa);
-#endif
+    SFX_INIT_TABLE[D_800B3F88_usa[arg0]].pan = pan;
+    handle = PlaySE(SFX_INIT_TABLE, D_800B3F88_usa[arg0]);
+    SFX_INIT_TABLE[D_800B3F88_usa[arg0]].pan = 0x80;
+    return handle;
+}
 
-#if VERSION_FRA
-INCLUDE_ASM("asm/fra/nonmatchings/main/sfxlimit", func_80005780_usa);
-#endif
+musHandle func_80005780_usa(s32 arg0) {
+    u32 idx = arg0 - 2;
 
-#if VERSION_GER
-INCLUDE_ASM("asm/ger/nonmatchings/main/sfxlimit", func_80005780_usa);
-#endif
+    if (idx >= 0x10) {
+        idx = 0;
+    }
+    return PlaySE(SFX_INIT_TABLE, D_800B3F9C_usa[idx]);
+}
 
 void func_80005888_usa(s32 arg0, s32 arg1, s32 arg2) {
     s32 var_s2;

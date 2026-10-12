@@ -18,6 +18,5 @@ void HVQM2Util_80040A4C_usa(void);
 tkAudioProc HVQM2Util_Rewind(void);
 
 extern HVQM2Arg B_801AABA0_usa;
-extern OSContPad B_801C7228_usa;
 
 #endif
