@@ -9,7 +9,9 @@ Format notes live in tools/mod/README.md. Subcommands:
   list     ROM                       table of archive entries
   extract  ROM OUT_DIR [NAME ...]    decode 3FIB images to PNG
   replace  ROM OUT_ROM NAME=PNG ...  re-encode frames in place and fix the CRC
+  scenes   ROM [IMAGE.BIF ...] [--word W]  which scenes show an image / mention a word
   verify   ORIG_ROM MOD_ROM NAME=PNG ...  round-trip and isolation check
+(replace and verify also take --rename FILE.SBF:Old=New for scene text)
 """
 
 from __future__ import annotations
@@ -297,6 +299,8 @@ def encode_pixels(fr: Frame, img: Image.Image) -> bytes:
                 row[2 * x : 2 * x + 2] = v.to_bytes(2, "big")
             elif f == FMT_RGBA32:
                 row[4 * x : 4 * x + 4] = bytes((r, g, b, a))
+            elif f == FMT_IA8:
+                row[2 * x : 2 * x + 2] = bytes((r, a))
             else:
                 raise NotImplementedError(f"encoding format 0x{f:02X}")
         out += row
@@ -360,6 +364,163 @@ def same_image(a: Image.Image, b: Image.Image) -> bool:
     return all(norm(p) == norm(q) for p, q in zip(rgba_pixels(a), rgba_pixels(b)))
 
 
+# --- SBF1 scenes (screenLoad in src/main/screen.c) ---------------------------------
+#
+# Big endian: "SBF1", image count, 16-byte image names, scene count, then per scene:
+# id, name (u32 len + bytes), and four object lists, each a u32 count followed by
+# variable-size records (areas, texts, sprites, extras). Optional fields depend on
+# flag bits, as below. Text is u16 codes: (kind << 10) | value, kind 6 = A-Z,
+# 7 = a-z, 5 = digits, 0 = spaces/line breaks, 4 = punctuation.
+
+
+@dataclass
+class Text:
+    flags: int
+    x: int
+    y: int
+    ident: int
+    count_pos: int  # offset of the u32 character count
+    chars: list[int]
+
+
+@dataclass
+class Sprite:
+    flags: int
+    x: int
+    y: int
+    ident: int
+    image: int  # index into the scene file's image list, -1 for none
+
+
+@dataclass
+class Scene:
+    ident: int
+    name: str
+    area_images: list[int] = field(default_factory=list)
+    texts: list[Text] = field(default_factory=list)
+    sprites: list[Sprite] = field(default_factory=list)
+    extra_images: list[int] = field(default_factory=list)
+
+
+@dataclass
+class Sbf:
+    images: list[str]
+    scenes: list[Scene]
+    end: int
+
+
+def parse_sbf(blob: bytes) -> Sbf:
+    pos = 0
+
+    def word(signed=False):
+        nonlocal pos
+        (v,) = struct.unpack_from(">i" if signed else ">I", blob, pos)
+        pos += 4
+        return v
+
+    def skip(n):
+        nonlocal pos
+        pos += n
+
+    if blob[:4] != b"SBF1":
+        raise ValueError("not an SBF1")
+    skip(4)
+    images = []
+    for _ in range(word()):
+        images.append(blob[pos : pos + 16].split(b"\0", 1)[0].decode("ascii"))
+        skip(16)
+    scenes = []
+    for _ in range(word()):
+        ident = word(True)
+        nlen = word()
+        sc = Scene(ident, blob[pos : pos + nlen].split(b"\0", 1)[0].decode("latin1"))
+        skip(nlen)
+        for _ in range(word()):  # areas
+            kind = word()
+            skip(4 * 5)
+            points = word(True)
+            skip(8 * max(points, 0))
+            skip(4 * sum(bool(kind & bit) for bit in (0x2000, 0x10, 0x20)))
+            if kind & 0x80:
+                sc.area_images.append(word(True))
+            if kind & 0x40:
+                skip(16)
+        for _ in range(word()):  # texts
+            flags, x, y, ident_t, _ = word(), word(True), word(True), word(True), word(True)
+            if flags & 0x40000800:
+                skip(8)
+            if flags & 0x4000:
+                skip(8)
+            skip(8 * word())
+            skip(8)
+            skip(4 * max(word(True), 0))
+            count_pos = pos
+            n = word()
+            chars = list(struct.unpack_from(f">{n}H", blob, pos))
+            skip(2 * n)
+            sc.texts.append(Text(flags, x, y, ident_t, count_pos, chars))
+        for _ in range(word()):  # sprites
+            flags, x, y, _, ident_s, _, image = word(), word(True), word(True), word(), word(True), word(), word(True)
+            if flags & 0x400:
+                skip(4)
+            if flags & 0x40:
+                skip(8)
+            sc.sprites.append(Sprite(flags, x, y, ident_s, image))
+        for _ in range(word()):  # extras
+            flags = word()
+            skip(12)
+            if flags & 1:
+                sc.extra_images.append(word(True))
+            skip(4 * sum(bool(flags & bit) for bit in (0x10, 0x20)) + (8 if flags & 4 else 0) + 4)
+        scenes.append(sc)
+    return Sbf(images, scenes, pos)
+
+
+def decode_text(chars: list[int]) -> str:
+    out = ""
+    for c in chars:
+        kind, v = c >> 10, c & 0x3FF
+        if kind == 6 and 1 <= v <= 26:
+            out += chr(64 + v)
+        elif kind == 7 and 1 <= v <= 26:
+            out += chr(96 + v)
+        elif kind == 5 and v <= 10:
+            out += str(v % 10)
+        elif kind == 0 and v == 1:
+            out += " "
+        else:
+            out += f"{{{kind}:{v}}}"
+    return out
+
+
+def encode_text(s: str) -> list[int]:
+    out = []
+    for ch in s:
+        if "A" <= ch <= "Z":
+            out.append(6 << 10 | (ord(ch) - 64))
+        elif "a" <= ch <= "z":
+            out.append(7 << 10 | (ord(ch) - 96))
+        elif ch == " ":
+            out.append(1)
+        else:
+            raise ValueError(f"no text code for {ch!r}")
+    return out
+
+
+def rename_texts(blob: bytes, old: str, new: str) -> tuple[bytes, int]:
+    """Replace every text object that reads exactly `old` with `new`. Only the
+    character count and the characters change; the file shrinks or grows by
+    2 bytes per character."""
+    sbf = parse_sbf(blob)
+    hits = [t for sc in sbf.scenes for t in sc.texts if decode_text(t.chars) == old]
+    out = bytearray(blob)
+    for t in sorted(hits, key=lambda t: t.count_pos, reverse=True):
+        codes = encode_text(new)
+        start, end = t.count_pos, t.count_pos + 4 + 2 * len(t.chars)
+        out[start:end] = struct.pack(f">I{len(codes)}H", len(codes), *codes)
+    return bytes(out), len(hits)
+
+
 # --- ROM helpers -----------------------------------------------------------------
 
 
@@ -395,21 +556,43 @@ def parse_pairs(pairs: list[str]) -> dict[str, list[Path | None]]:
     return out
 
 
-def apply_replacements(rom: bytearray, start: int, repl: dict[str, list[Path]]) -> list[str]:
+def parse_renames(renames: list[str]) -> dict[str, list[tuple[str, str]]]:
+    """FILE.SBF:Old=New -> {FILE.SBF: [(old, new)]}"""
+    out: dict[str, list[tuple[str, str]]] = {}
+    for r in renames:
+        name, _, rest = r.partition(":")
+        old, _, new = rest.partition("=")
+        out.setdefault(name.upper(), []).append((old, new))
+    return out
+
+
+def edited_file(old: bytes, pngs: list[Path | None] | None, renames: list[tuple[str, str]] | None) -> tuple[bytes, str]:
+    if pngs:
+        return replace_frames(old, [Image.open(p) if p else None for p in pngs]), f"{sum(1 for p in pngs if p)} frame(s)"
+    notes = []
+    for o, n in renames or []:
+        old, hits = rename_texts(old, o, n)
+        if not hits:
+            sys.exit(f"text {o!r} not found")
+        notes.append(f"{o!r} -> {n!r} x{hits}")
+    return old, ", ".join(notes)
+
+
+def apply_edits(rom: bytearray, start: int, repl, renames) -> list[str]:
     entries = read_table(rom, start)
     log = []
-    for name, pngs in repl.items():
+    for name in sorted(set(repl) | set(renames)):
         e = find(entries, name)
         rom_pos = start + e.offset
         old = bytes(rom[rom_pos : rom_pos + e.size])
-        new = replace_frames(old, [Image.open(p) if p else None for p in pngs])
+        new, note = edited_file(old, repl.get(name), renames.get(name))
         if len(new) > e.size:
             # Growing a file would move every later file; not needed so far.
             sys.exit(f"{name}: new data is {len(new)} bytes, slot holds {e.size}")
         rom[rom_pos : rom_pos + len(new)] = new
         rom[rom_pos + len(new) : rom_pos + e.size] = b"\xff" * (e.size - len(new))
         struct.pack_into(">I", rom, e.table_pos, len(new))
-        log.append(f"{name}: ROM 0x{rom_pos:X}, {e.size} -> {len(new)} bytes, {sum(1 for p in pngs if p)} frame(s)")
+        log.append(f"{name}: ROM 0x{rom_pos:X}, {e.size} -> {len(new)} bytes, {note}")
     return log
 
 
@@ -451,9 +634,33 @@ def cmd_extract(a):
             print(f"skip {e.name}: {ex}", file=sys.stderr)
 
 
+def cmd_scenes(a):
+    """Which scene shows which image, and every text that mentions a word."""
+    rom = load_rom(a.rom)
+    start = archive_start(a.version)
+    images = {n.upper() for n in a.images}
+    for e in read_table(rom, start):
+        blob = bytes(rom[start + e.offset : start + e.offset + e.size])
+        if blob[:4] != b"SBF1":
+            continue
+        sbf = parse_sbf(blob)
+        for sc in sbf.scenes:
+            for sp in sc.sprites:
+                if sp.image >= 0 and sbf.images[sp.image].upper() in images:
+                    print(f"{e.name:13} {sc.name:16} sprite id={sp.ident:<5} at ({sp.x},{sp.y}) {sbf.images[sp.image]}")
+            for kind, idxs in (("area", sc.area_images), ("extra", sc.extra_images)):
+                for i in idxs:
+                    if i >= 0 and sbf.images[i].upper() in images:
+                        print(f"{e.name:13} {sc.name:16} {kind} {sbf.images[i]}")
+            for t in sc.texts:
+                s = decode_text(t.chars)
+                if a.word and a.word.lower() in s.lower():
+                    print(f"{e.name:13} {sc.name:16} text id={t.ident:<5} at ({t.x},{t.y}) {s[:70]!r}")
+
+
 def cmd_replace(a):
     rom = load_rom(a.rom)
-    for line in apply_replacements(rom, archive_start(a.version), parse_pairs(a.pairs)):
+    for line in apply_edits(rom, archive_start(a.version), parse_pairs(a.pairs), parse_renames(a.rename)):
         print(line)
     fix_crc(rom)
     a.out.parent.mkdir(parents=True, exist_ok=True)
@@ -464,7 +671,8 @@ def cmd_replace(a):
 def cmd_verify(a):
     orig, mod = load_rom(a.orig), load_rom(a.mod)
     start = archive_start(a.version)
-    repl = parse_pairs(a.pairs)
+    repl, renames = parse_pairs(a.pairs), parse_renames(a.rename)
+    edited = set(repl) | set(renames)
     ok = True
 
     def check(cond, msg):
@@ -477,41 +685,58 @@ def cmd_verify(a):
     check(len(t_orig) == len(t_mod), f"{len(t_mod)} archive entries")
     same = 0
     for eo, em in zip(t_orig, t_mod):
-        a_o = orig[start + eo.offset : start + eo.offset + eo.size]
-        a_m = mod[start + em.offset : start + em.offset + em.size]
-        if eo.name.upper() in repl:
-            fib = parse_fib(bytes(a_m))
+        a_o = bytes(orig[start + eo.offset : start + eo.offset + eo.size])
+        a_m = bytes(mod[start + em.offset : start + em.offset + em.size])
+        name = eo.name.upper()
+        if name in repl:
+            fib = parse_fib(a_m)
             check(fib.end == em.size, f"{em.name}: re-parses, {len(fib.frames)} frames, ends at its size")
-            fo = parse_fib(bytes(a_o))
+            fo = parse_fib(a_o)
             check(len(fo.frames) == len(fib.frames), f"{em.name}: frame count unchanged")
-            pngs = repl[eo.name.upper()]
+            pngs = repl[name]
             for i, (x, y) in enumerate(zip(fo.frames, fib.frames)):
                 png = pngs[i] if i < len(pngs) else None
                 if png:
                     check(same_image(frame_to_image(y), Image.open(png)), f"{em.name} frame {i}: decodes to exactly {png.name}")
                 else:
-                    check(same_image(frame_to_image(x), frame_to_image(y)), f"{em.name} frame {i}: kept as is")
+                    check(
+                        a_o[x.hdr_pos : x.data_end] == a_m[y.hdr_pos : y.data_end],
+                        f"{em.name} frame {i}: bytes unchanged",
+                    )
                 check(
                     (x.flags, x.width, x.pixel_width, x.height, x.stride, len(x.palette))
                     == (y.flags, y.width, y.pixel_width, y.height, y.stride, len(y.palette)),
                     f"{em.name} frame {i}: flags/size/stride/palette size unchanged",
                 )
+        if name in renames:
+            so, sm = parse_sbf(a_o), parse_sbf(a_m)
+            check(sm.end == em.size, f"{em.name}: re-parses, {len(sm.scenes)} scenes, ends at its size")
+            texts_o = [decode_text(t.chars) for sc in so.scenes for t in sc.texts]
+            texts_m = [decode_text(t.chars) for sc in sm.scenes for t in sc.texts]
+            mapping = dict(renames[name])
+            check(
+                [mapping.get(t, t) for t in texts_o] == texts_m,
+                f"{em.name}: {sum(t in mapping for t in texts_o)} text(s) renamed, other {len(texts_o) - sum(t in mapping for t in texts_o)} unchanged",
+            )
+            strip = lambda s: [(sc.ident, sc.name, sc.area_images, sc.sprites, sc.extra_images,
+                                [(t.flags, t.x, t.y, t.ident) for t in sc.texts]) for sc in s.scenes]
+            check(so.images == sm.images and strip(so) == strip(sm), f"{em.name}: images, sprites and text layout unchanged")
+        if name in edited:
             check(eo.offset == em.offset, f"{em.name}: offset unchanged")
+        elif (eo.name, eo.offset, eo.size) == (em.name, em.offset, em.size) and a_o == a_m:
+            same += 1
         else:
-            if (eo.name, eo.offset, eo.size) == (em.name, em.offset, em.size) and a_o == a_m:
-                same += 1
-            else:
-                check(False, f"{eo.name}: differs")
-    check(same == len(t_orig) - len(repl), f"{same} other entries byte-identical (name, offset, size, data)")
+            check(False, f"{eo.name}: differs")
+    check(same == len(t_orig) - len(edited), f"{same} other entries byte-identical (name, offset, size, data)")
 
-    # Everything outside the replaced slots, the table rows and the CRC words must match.
+    # Everything outside the edited slots, their table rows and the CRC words must match.
     allowed = [(0x10, 0x18)]
-    for name in repl:
+    for name in edited:
         e = find(t_orig, name)
         allowed += [(start + e.offset, start + e.offset + e.size), (e.table_pos, e.table_pos + 4)]
     diffs = [i for i in range(len(orig)) if orig[i] != mod[i]] if len(orig) == len(mod) else []
     stray = [i for i in diffs if not any(lo <= i < hi for lo, hi in allowed)]
-    check(not stray, f"{len(diffs)} differing bytes, {len(stray)} outside the replaced slots/table rows/CRC")
+    check(not stray, f"{len(diffs)} differing bytes, {len(stray)} outside the edited slots/table rows/CRC")
 
     fixed = bytearray(mod)
     fix_crc(fixed)
@@ -534,17 +759,19 @@ def main():
     s.add_argument("names", nargs="*")
     s.set_defaults(func=cmd_extract)
 
-    s = sub.add_parser("replace")
+    s = sub.add_parser("scenes")
     s.add_argument("rom", type=Path)
-    s.add_argument("out", type=Path)
-    s.add_argument("pairs", nargs="+", metavar="NAME=PNG[,PNG...]")
-    s.set_defaults(func=cmd_replace)
+    s.add_argument("images", nargs="*", metavar="IMAGE.BIF")
+    s.add_argument("--word", help="also list texts containing this (case-insensitive)")
+    s.set_defaults(func=cmd_scenes)
 
-    s = sub.add_parser("verify")
-    s.add_argument("orig", type=Path)
-    s.add_argument("mod", type=Path)
-    s.add_argument("pairs", nargs="+", metavar="NAME=PNG[,PNG...]")
-    s.set_defaults(func=cmd_verify)
+    for cmd, func, roms in (("replace", cmd_replace, ("rom", "out")), ("verify", cmd_verify, ("orig", "mod"))):
+        s = sub.add_parser(cmd)
+        for r in roms:
+            s.add_argument(r, type=Path)
+        s.add_argument("pairs", nargs="*", metavar="NAME=PNG[,PNG...]")
+        s.add_argument("--rename", action="append", default=[], metavar="FILE.SBF:Old=New")
+        s.set_defaults(func=func)
 
     a = p.parse_args()
     a.func(a)

@@ -92,6 +92,52 @@ def finish(content: Image.Image) -> Image.Image:
     return frame
 
 
+def draw_head() -> Image.Image:
+    """30x33 head for the records screen (RECHEADS.BIF frame 1), RGBA with soft edges."""
+    s = 8
+    img = Image.new("RGBA", (30 * s, 33 * s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    outline = (20, 24, 20, 255)
+    d.ellipse([5 * s, 9 * s, 25 * s, 31 * s], fill=(214, 160, 118, 255), outline=outline, width=s)
+    for cx, cy, r in [(7, 11, 5), (11, 6, 6), (16, 4, 6), (21, 6, 6), (24, 11, 5), (15, 9, 7)]:
+        d.ellipse([(cx - r) * s, (cy - r) * s, (cx + r) * s, (cy + r) * s], fill=(92, 176, 64, 255), outline=outline, width=s)
+    d.ellipse([10 * s, 7 * s, 20 * s, 13 * s], fill=(92, 176, 64, 255))
+    for cx in (11.5, 18.5):
+        d.ellipse([(cx - 3.5) * s, 16 * s, (cx + 3.5) * s, 23 * s], fill=(200, 236, 240, 255), outline=(40, 40, 120, 255), width=s)
+        d.ellipse([(cx - 1) * s, 18.5 * s, (cx + 1) * s, 20.5 * s], fill=outline)
+    d.chord([11 * s, 23 * s, 19 * s, 29 * s], 0, 180, fill=(120, 30, 40, 255), outline=outline, width=s)
+    # hard alpha edge and few colours, like the game's own heads: it must compress
+    # into the old frame's space (RLE only pays off on repeated pixels)
+    small = img.resize((30, 33), Image.LANCZOS)
+    alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+    rgb = small.convert("RGB").quantize(colors=20, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
+    rgb.putalpha(alpha)
+    return Image.composite(rgb, Image.new("RGBA", rgb.size, (0, 0, 0, 0)), alpha)
+
+
+def draw_background() -> Image.Image:
+    """128x96 puzzle-editor background (PBACKBROCK.BIF): Moss's greenhouse."""
+    w, h = 128, 96
+    img = Image.new("RGB", (w, h))
+    d = ImageDraw.Draw(img)
+    for y in range(h):
+        d.line([(0, y), (w, y)], fill=lerp((170, 220, 230), (120, 190, 170), y / h))
+    # glass panes: white frame lines
+    for x in range(0, w, 32):
+        d.line([(x, 0), (x, 60)], fill=(240, 250, 250), width=2)
+    for y in (20, 40):
+        d.line([(0, y), (w, y)], fill=(240, 250, 250), width=2)
+    d.rectangle([0, 60, w, h], fill=(120, 84, 56))  # soil bed
+    d.rectangle([0, 58, w, 61], fill=(90, 60, 40))
+    # rows of round shrubs and pots
+    for i, cx in enumerate(range(12, w, 26)):
+        green = (70, 150, 60) if i % 2 else (92, 176, 64)
+        d.ellipse([cx - 11, 38, cx + 11, 62], fill=green, outline=(30, 70, 30))
+        d.polygon([(cx - 8, 66), (cx + 8, 66), (cx + 6, 82), (cx - 6, 82)], fill=(200, 110, 70), outline=(110, 60, 40))
+        d.ellipse([cx - 3, 44, cx + 3, 50], fill=(240, 200, 70))
+    return img.convert("RGBA")
+
+
 def main():
     content = draw_portrait()
     finish(content).save(OUT / "moss_00.png")
@@ -99,7 +145,9 @@ def main():
     flipped = content.transpose(Image.FLIP_LEFT_RIGHT)
     flipped.paste(content.crop((0, 0, CONTENT_W, 24)), (0, 0))
     finish(flipped).save(OUT / "moss_01.png")
-    print(f"wrote {OUT / 'moss_00.png'} and {OUT / 'moss_01.png'}")
+    draw_head().save(OUT / "moss_head.png")
+    draw_background().save(OUT / "moss_back.png")
+    print(f"wrote moss_00.png, moss_01.png, moss_head.png, moss_back.png in {OUT}")
 
 
 if __name__ == "__main__":
