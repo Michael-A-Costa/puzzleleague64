@@ -287,21 +287,84 @@ s32 PlayGameMusicTest(s32 song_index) {
 #endif
 }
 
-#if VERSION_USA
-INCLUDE_ASM("asm/usa/nonmatchings/main/tetsound", func_800048C0_usa);
-#endif
+/**
+ * Original name: PlayGameSfxTest
+ */
+musHandle PlayGameSfxTest(s32 sfx_index) {
+    if (sfx_index >= 0x1E5) {
+        return 0;
+    }
 
-#if VERSION_EUR
-INCLUDE_ASM("asm/eur/nonmatchings/main/tetsound", func_800048C0_usa);
-#endif
+    while (MusAsk(MUSFLAG_EFFECTS) != 0) {
+        func_80002DE8_usa();
+        AudioUpdate();
+    }
 
-#if VERSION_FRA
-INCLUDE_ASM("asm/fra/nonmatchings/main/tetsound", func_800048C0_usa);
-#endif
+    sfx_index--;
+    if (D_800B3F04_usa != D_800B3B38_usa[sfx_index]) {
+        D_800B3F04_usa = D_800B3B38_usa[sfx_index];
+    }
 
-#if VERSION_GER
-INCLUDE_ASM("asm/ger/nonmatchings/main/tetsound", func_800048C0_usa);
-#endif
+    D_800B3F14_usa = 1;
+    if ((sfx_index >= 0) && (sfx_index < 0x10)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 4;
+    } else if ((sfx_index >= 0x10) && (sfx_index < 0x20)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 5;
+    } else if ((sfx_index >= 0x20) && (sfx_index < 0x30)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 6;
+    } else if ((sfx_index >= 0x30) && (sfx_index < 0x40)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 7;
+    } else if ((sfx_index >= 0x40) && (sfx_index < 0x50)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 8;
+    } else if ((sfx_index >= 0x50) && (sfx_index < 0x60)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 9;
+    } else if ((sfx_index >= 0x60) && (sfx_index < 0x70)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xA;
+    } else if ((sfx_index >= 0x70) && (sfx_index < 0x80)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xB;
+    } else if ((sfx_index >= 0x80) && (sfx_index < 0x90)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xC;
+    } else if ((sfx_index >= 0x90) && (sfx_index < 0xA0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xD;
+    } else if ((sfx_index >= 0xA0) && (sfx_index < 0xB0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xE;
+    } else if ((sfx_index >= 0xB0) && (sfx_index < 0xC0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0xF;
+    } else if ((sfx_index >= 0xC0) && (sfx_index < 0xD0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0x10;
+    } else if ((sfx_index >= 0xD0) && (sfx_index < 0xE0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0x11;
+    } else if ((sfx_index >= 0xE0) && (sfx_index < 0xF0)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0x12;
+    } else if ((sfx_index >= 0xF0) && (sfx_index < 0x100)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0x13;
+    } else if ((sfx_index >= 0x100) && (sfx_index < 0x110)) {
+        D_800B3F10_usa = 3;
+        D_800B3F0C_usa = 0x14;
+    } else {
+        goto play;
+    }
+    LoadSFXBank(D_800B3F0C_usa, D_800B3F10_usa);
+
+play:
+    return PlaySE(SFX_INIT_TABLE, D_800B3F04_usa);
+}
 
 nbool func_80004B9C_usa(s32 arg0) {
     SfxInitStruct *sfx;
