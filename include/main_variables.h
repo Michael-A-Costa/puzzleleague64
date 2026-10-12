@@ -53,8 +53,8 @@ extern s16 D_800B3B38_usa[];
 // extern UNK_TYPE D_800B3F14_usa;
 // extern UNK_TYPE D_800B3F20_usa;
 // extern UNK_TYPE D_800B3F54_usa;
-// extern UNK_TYPE D_800B3F88_usa;
-// extern UNK_TYPE D_800B3F9C_usa;
+extern u8 D_800B3F88_usa[];
+extern u8 D_800B3F9C_usa[];
 
 // extern UNK_TYPE D_800B58B0_usa;
 // extern UNK_TYPE D_800B58B4_usa;
