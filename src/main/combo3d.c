@@ -186,7 +186,29 @@ void Set3DRowConnectState(tetWell *well, s32 row, s32 left, s32 right) {
 }
 
 #if VERSION_USA
+#ifdef NON_MATCHING
+// bnez/bnezl on the loop branch
+/**
+ * Original name: UpdateWell3DRowConnect
+ */
+nbool UpdateWell3DRowConnect(tetWell *well, s32 row, s32 *col) {
+    s32 temp;
+
+    if (well->block[row][BLOCK_COLS_3D - 1].state != BLOCKSTATE_7) {
+        return nfalse;
+    }
+
+    temp = BLOCK_COLS_3D - 1;
+    while ((well->block[row][temp].state == BLOCKSTATE_7) && (temp > 0)) {
+        temp--;
+    }
+
+    *col = temp;
+    return ntrue;
+}
+#else
 INCLUDE_ASM("asm/usa/nonmatchings/main/combo3d", UpdateWell3DRowConnect);
+#endif
 #endif
 
 #if VERSION_EUR
