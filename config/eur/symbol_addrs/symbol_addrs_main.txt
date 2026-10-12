@@ -2796,7 +2796,7 @@ B_801F8D38_eur = 0x801F8D38; //
 __osBaseTimer = 0x801F8D40; //
 
 B_801F8D64_eur = 0x801F8D64; //
-B_801F8D68_eur = 0x801F8D68; //
+B_801F9CA8_usa = 0x801F8D68; //
 gAllVertex = 0x801F8D78; //
 
 __muscontrol_flag = 0x801F8D80; //

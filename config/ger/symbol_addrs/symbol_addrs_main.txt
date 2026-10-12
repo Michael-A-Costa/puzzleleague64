@@ -2778,7 +2778,7 @@ B_801ECA08_ger = 0x801ECA08; //
 __osBaseTimer = 0x801ECA10; //
 
 B_801ECA34_ger = 0x801ECA34; //
-B_801ECA38_ger = 0x801ECA38; // type:u16
+B_801F9CA8_usa = 0x801ECA38; // type:u16
 gAllVertex = 0x801ECA48; //
 
 __muscontrol_flag = 0x801ECA50; //

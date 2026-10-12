@@ -2771,7 +2771,7 @@ B_801F7398_fra = 0x801F7398; //
 __osBaseTimer = 0x801F73A0; //
 
 B_801F73C4_fra = 0x801F73C4; //
-B_801F73C8_fra = 0x801F73C8; // type:u16
+B_801F9CA8_usa = 0x801F73C8; // type:u16
 gAllVertex = 0x801F73D8; //
 
 __muscontrol_flag = 0x801F73E0; //

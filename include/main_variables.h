@@ -1298,7 +1298,7 @@ extern u16 st_Chain1[];
 // extern UNK_TYPE B_801C7218_usa;
 // extern UNK_TYPE B_801C7220_usa;
 // extern UNK_TYPE B_801C7224_usa;
-// extern UNK_TYPE B_801C7228_usa;
+extern OSContPad B_801C7228_usa[MAXCONTROLLERS];
 
 extern s32 chain_check[GAME_BUFFER_LEN];
 extern u8 B_801C7348_usa;

@@ -7,6 +7,8 @@
 #include "macros_defines.h"
 #include "main_variables.h"
 
+#include "the_game.h"
+
 extern OSMesg B_801AB80C_usa[1];
 
 extern s32 B_801A5B30_usa;
@@ -22,51 +24,51 @@ void InitController(void) {
     CheckController();
 }
 
-#if VERSION_USA
-#ifdef NON_EQUIVALENT
+/**
+ * Original name: CheckController
+ */
 void CheckController(void) {
-    s32 var_a0;
+    s32 i;
 
+#if 0
+    // Local variables
+    long i; // r8
+
+    // References
+    // -> unsigned char gValidControllers;
+    // -> struct Game gTheGame;
+    // -> struct [anonymous] gControllerStatus[4];
+    // -> unsigned char gValidControllersBak;
+#endif
+
+#if REGION_NTSC
     if (osContInit(&gSerialMsgQ, &D_800B69B0_usa, B_801F9CA8_usa) != 0) {
         osSyncPrintf("InitController(): Failure initing controllers\n");
     }
-    osContSetCh(2U);
+#else
+    osContInit(&gSerialMsgQ, &D_800B69B0_usa, B_801F9CA8_usa);
+#endif
+    osContSetCh(2);
     osContStartQuery(&gSerialMsgQ);
-    osRecvMesg(&gSerialMsgQ, NULL, 1);
-    osContGetQuery(&B_801F9CA8_usa);
+    osRecvMesg(&gSerialMsgQ, NULL, OS_MESG_BLOCK);
+    osContGetQuery(B_801F9CA8_usa);
     D_800B69B0_usa = 0;
 
-    for (var_a0 = 0; var_a0 < 4; var_a0++) {
-        if ((B_801F9CA8_usa[var_a0].type & CONT_TYPE_MASK) == CONT_TYPE_NORMAL) {
-            D_800B69B0_usa |= 1 << var_a0;
+    for (i = 0; i < MAXCONTROLLERS; i++) {
+        if ((B_801F9CA8_usa[i].type & CONT_TYPE_MASK) == CONT_TYPE_NORMAL) {
+            D_800B69B0_usa |= 1 << i;
         }
     }
 
-    B_801A5B30_usa = -1;
-    B_801A5B40_usa = -1;
+    gTheGame.controller[0].position = -1;
+    gTheGame.controller[1].position = -1;
     if (D_800B69B0_usa & 1) {
-        B_801A5B30_usa = 0;
+        gTheGame.controller[0].position = 0;
     }
     if ((D_800B69B0_usa >> 1) & 1) {
-        B_801A5B40_usa = 1;
+        gTheGame.controller[1].position = 1;
     }
 }
-#else
-INCLUDE_ASM("asm/usa/nonmatchings/main/controller", CheckController);
-#endif
-#endif
-
-#if VERSION_EUR
-INCLUDE_ASM("asm/eur/nonmatchings/main/controller", CheckController);
-#endif
-
-#if VERSION_FRA
-INCLUDE_ASM("asm/fra/nonmatchings/main/controller", CheckController);
-#endif
-
-#if VERSION_GER
-INCLUDE_ASM("asm/ger/nonmatchings/main/controller", CheckController);
-#endif
 
 void func_80046F8C_usa(void) {
     OSContStatus sp10[MAXCONTROLLERS];
@@ -197,86 +199,70 @@ INCLUDE_ASM("asm/fra/nonmatchings/main/controller", UpdateController);
 INCLUDE_ASM("asm/ger/nonmatchings/main/controller", UpdateController);
 #endif
 
-#if VERSION_USA
-#if 0
-extern OSContPad B_801C7228_usa;
-
+/**
+ * Original name: UpdateMenuController
+ */
 void UpdateMenuController(void) {
-    OSContPad *temp_a2;
-    s32 temp_a0;
-    s32 temp_v0_3;
-    s32 temp_v1;
-    s32 var_a0;
-    s32 var_a3;
-    s32 var_v0;
-    s8 temp_v1_2;
-    s8 temp_v1_3;
-    u16 temp_v0;
-    u16 temp_v0_2;
-    u16 temp_v1_4;
-    void *temp_a1;
+    gamepad_t *gamepad;
+    OSContPad *pad;
+    s32 dir;
+    u16 i;
 
-    osContGetReadData(&B_801C7228_usa);
-    var_a3 = 0;
-    var_v0 = 0 & 0xFFFF;
-    do {
-        temp_a0 = var_v0 * 0x10;
-        temp_v1 = *(&B_801A5B30_usa + temp_a0);
-        if (temp_v1 == var_v0) {
-            temp_a2 = &(&B_801C7228_usa)[temp_v1];
-            temp_a1 = temp_a0 + &B_801A5B30_usa;
-            if (temp_a2->errno == 0) {
-                temp_v1_2 = temp_a2->stick_x;
-                var_a0 = (temp_v1_2 < -0x1E) << 9;
-                if (temp_v1_2 >= 0x1F) {
-                    var_a0 |= 0x100;
-                }
-                temp_v1_3 = temp_a2->stick_y;
-                if (temp_v1_3 < -0x1E) {
-                    var_a0 |= 0x400;
-                }
-                if (temp_v1_3 >= 0x1F) {
-                    var_a0 |= 0x800;
-                }
-                temp_v1_4 = temp_a2->button;
-                if (!(temp_v1_4 & 0xF00)) {
-                    temp_a2->button = temp_v1_4 | var_a0;
-                }
-                temp_v0 = temp_a2->button ^ temp_a1->unk_E;
-                temp_a1->unk_4 = temp_v0;
-                temp_v0_2 = temp_v0 & temp_a2->button;
-                temp_a1->unk_4 = temp_v0_2;
-                temp_a1->unk_6 = temp_v0_2;
-                if (temp_a2->button != temp_a1->unk_E) {
-                    temp_a1->unk_8 = 0xA;
-                } else {
-                    temp_v0_3 = temp_a1->unk_8 - 1;
-                    temp_a1->unk_8 = temp_v0_3;
-                    if (temp_v0_3 <= 0) {
-                        temp_a1->unk_6 = (u16) temp_a2->button;
-                        temp_a1->unk_8 = (s32) (temp_a1->unk_8 + 3);
-                    }
-                }
-                temp_a1->unk_E = (u16) temp_a2->button;
-            }
+#if 0
+    // Local variables
+    struct gamepad_t * gamepad; // r7
+    unsigned short i; // r5
+
+    // References
+    // -> unsigned char gValidControllers;
+    // -> struct Game gTheGame;
+    // -> struct [anonymous] gControllerStatus[4];
+    // -> unsigned char gValidControllersBak;
+    // -> static struct st_ContData contdata$181[4];
+    // -> struct [anonymous] gControllerData[4];
+#endif
+
+    osContGetReadData(B_801C7228_usa);
+
+    for (i = 0; i < 2; i++) {
+        if (gTheGame.controller[i].position != i) {
+            continue;
         }
-        var_a3 += 1;
-        var_v0 = var_a3 & 0xFFFF;
-    } while ((u32) (var_a3 & 0xFFFF) < 2U);
+
+        pad = &B_801C7228_usa[gTheGame.controller[i].position];
+        gamepad = &gTheGame.controller[i];
+        if (pad->errno != 0) {
+            continue;
+        }
+
+        dir = 0;
+        if (pad->stick_x < -0x1E) {
+            dir |= L_JPAD;
+        }
+        if (pad->stick_x >= 0x1F) {
+            dir |= R_JPAD;
+        }
+        if (pad->stick_y < -0x1E) {
+            dir |= D_JPAD;
+        }
+        if (pad->stick_y >= 0x1F) {
+            dir |= U_JPAD;
+        }
+        if ((pad->button & (U_JPAD | D_JPAD | L_JPAD | R_JPAD)) == 0) {
+            pad->button |= dir;
+        }
+
+        gamepad->touch_button = pad->button ^ gamepad->button;
+        gamepad->touch_button &= pad->button;
+        gamepad->hold_button = gamepad->touch_button;
+        if (pad->button == gamepad->button) {
+            if (--gamepad->hold <= 0) {
+                gamepad->hold_button = pad->button;
+                gamepad->hold += 3;
+            }
+        } else {
+            gamepad->hold = ADJUST_FRAMERATE(0xA);
+        }
+        gamepad->button = pad->button;
+    }
 }
-#else
-INCLUDE_ASM("asm/usa/nonmatchings/main/controller", UpdateMenuController);
-#endif
-#endif
-
-#if VERSION_EUR
-INCLUDE_ASM("asm/eur/nonmatchings/main/controller", UpdateMenuController);
-#endif
-
-#if VERSION_FRA
-INCLUDE_ASM("asm/fra/nonmatchings/main/controller", UpdateMenuController);
-#endif
-
-#if VERSION_GER
-INCLUDE_ASM("asm/ger/nonmatchings/main/controller", UpdateMenuController);
-#endif

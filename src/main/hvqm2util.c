@@ -1170,13 +1170,13 @@ s32 HVQM2Util_Play(File *arg0, u32 arg1, void *heap) {
             }
 
             osRecvMesg(&gSerialMsgQ, NULL, OS_MESG_BLOCK);
-            osContGetReadData(&B_801C7228_usa);
+            osContGetReadData(B_801C7228_usa);
 
-            if (B_801C7228_usa.button == 0) {
+            if (B_801C7228_usa[0].button == 0) {
                 sp7C = 0;
             }
 
-            if ((sp7C == 0) && (B_801C7228_usa.button & arg1)) {
+            if ((sp7C == 0) && (B_801C7228_usa[0].button & arg1)) {
                 sp84 = -1;
                 break;
             }
